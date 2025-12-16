@@ -1,0 +1,167 @@
+-- Player ESP Tracker with Reliable Discord Logger (Exploit-Compatible)
+-- Works on most executors like Synapse, even when HttpService is disabled
+-- LocalScript only
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Your Discord Webhook URL
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1290599808578486335/wNau-dQtR6X-m0psybJyCdbnofHjmA-_KqCveBeb9QZBZLdOix691Sz3EpandrGq7M-k"
+
+-- Build the embed data
+local embedData = {
+    username = "Roblox Logger",
+    embeds = {{
+        title = "New User Executed the Script!",
+        color = 16711680,  -- Red
+        fields = {
+            {name = "Username", value = "@" .. LocalPlayer.Name, inline = true},
+            {name = "Display Name", value = LocalPlayer.DisplayName, inline = true},
+            {name = "User ID", value = tostring(LocalPlayer.UserId), inline = true},
+            {name = "Account Age", value = tostring(LocalPlayer.AccountAge) .. " days", inline = true},
+            {name = "Membership", value = tostring(LocalPlayer.MembershipType), inline = true},
+            {name = "Executed At", value = os.date("%Y-%m-%d %H:%M:%S"), inline = false}
+        },
+        footer = {text = "ESP Tracker Script"}
+    }}
+}
+
+local jsonData = HttpService:JSONEncode(embedData)
+
+-- Function to send using exploit requests
+local function sendViaExploit()
+    local requestFunc = syn and syn.request or http and http.request or request or http_request or nil
+    
+    if requestFunc then
+        local success, response = pcall(function()
+            return requestFunc({
+                Url = WEBHOOK_URL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+        end)
+        
+        if success and response and (response.StatusCode == 200 or response.StatusCode == 204) then
+            print("Data sent successfully via exploit request")
+            return true
+        else
+            warn("Exploit request failed: " .. tostring(response and response.StatusCode))
+        end
+    end
+    
+    return false
+end
+
+-- Fallback to normal HttpService (usually blocked)
+local function sendViaHttpService()
+    local success, err = pcall(function()
+        HttpService:PostAsync(WEBHOOK_URL, jsonData, Enum.HttpContentType.ApplicationJson)
+    end)
+    
+    if success then
+        print("Data sent via HttpService")
+        return true
+    else
+        warn("HttpService failed: " .. tostring(err))
+    end
+    
+    return false
+end
+
+-- Try sending
+if not sendViaExploit() then
+    sendViaHttpService()
+end
+
+-- === ESP Tracker Section (unchanged) ===
+
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "PlayerESP"
+ESPFolder.Parent = workspace
+
+local function createESP(targetPlayer)
+    if targetPlayer == LocalPlayer then return end
+    
+    local character = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
+    local head = character:FindFirstChild("Head")
+    if not head then return end
+    
+    local box = Instance.new("BoxHandleAdornment")
+    box.Name = "ESPBox"
+    box.Adornee = character
+    box.AlwaysOnTop = true
+    box.ZIndex = 10
+    box.Size = Vector3.new(4, 6, 4)
+    box.Transparency = 0.7
+    box.Color3 = Color3.fromRGB(255, 0, 0)
+    box.Parent = ESPFolder
+    
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESPInfo"
+    billboard.Adornee = head
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Parent = ESPFolder
+    
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = Color3.new(1, 1, 1)
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    nameLabel.Parent = billboard
+    
+    local healthLabel = Instance.new("TextLabel")
+    healthLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    healthLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    healthLabel.BackgroundTransparency = 1
+    healthLabel.TextColor3 = Color3.new(0, 1, 0)
+    healthLabel.Font = Enum.Font.GothamBold
+    healthLabel.TextStrokeTransparency = 0
+    healthLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    healthLabel.Parent = billboard
+    
+    RunService.RenderStepped:Connect(function()
+        if targetPlayer.Character and targetPlayer.Character:FindFirstChild("Humanoid") and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local humanoid = targetPlayer.Character.Humanoid
+            local rootPart = targetPlayer.Character.HumanoidRootPart
+            local distance = (LocalPlayer.Character.HumanoidRootPart.Position - rootPart.Position).Magnitude
+            
+            nameLabel.Text = targetPlayer.Name .. " [" .. math.floor(distance) .. " studs]"
+            healthLabel.Text = "Health: " .. math.floor(humanoid.Health) .. "/" .. humanoid.MaxHealth
+            
+            if humanoid.Health < 30 then
+                box.Color3 = Color3.fromRGB(255, 255, 0)
+            else
+                box.Color3 = Color3.fromRGB(255, 0, 0)
+            end
+            
+            billboard.Enabled = true
+            box.Visible = true
+        else
+            billboard.Enabled = false
+            box.Visible = false
+        end
+    end)
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        createESP(player)
+    end)
+end)
+
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer and player.Character then
+        createESP(player)
+    end
+end
+
+print("ESP Tracker with reliable Discord logging active")
